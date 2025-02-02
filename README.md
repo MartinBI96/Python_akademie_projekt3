@@ -17,6 +17,7 @@ Tento projekt je Pythonový skript, který stahuje volební výsledky z webovýc
 - `beautifulsoup4` – Pro analýzu a extrakci dat z HTML.
 - `argparse` – Pro zpracování argumentů z příkazové řádky.
 - `csv` – Pro generování CSV souboru.
+- `sys`– pro správu argumentů a ukončení programu v případě chyby
 
 ## Instalace
 
