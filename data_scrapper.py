@@ -13,23 +13,23 @@ import csv
 import argparse
 
 def get_soup(url):
-    """Stáhne HTML obsah stránky a vrátí BeautifulSoup objekt."""
+    """Extracts HTML content of the website and returns BeautifulSoup object."""
     response = requests.get(url)
     if response.status_code != 200:
         raise Exception(f"Chyba při načítání stránky: {response.status_code}")
     return BeautifulSoup(response.text, 'html.parser')
 
 def extract_links_and_info(soup):
-    """Extrahuje odkazy, kódy a názvy obcí z úvodní stránky územního celku."""
+    """Extracts links, codes and names of the municipalities from the website of a region."""
     data = []
-    tables = soup.find_all('table', {'class': 'table'})  # Najde všechny tabulky
+    tables = soup.find_all('table', {'class': 'table'})  # Finds all tables
     for table in tables:
-        for row in table.find_all('tr')[2:]:  # První dva řádky jsou hlavičky
+        for row in table.find_all('tr')[2:]:  # First two rows are headers
             cells = row.find_all('td')
             if len(cells) > 1:
-                link = cells[0].find('a')  # Odkaz ve sloupci "číslo"
-                kod_obce = cells[0].text.strip()  # Kód obce
-                nazev_obce = cells[1].text.strip()  # Název obce
+                link = cells[0].find('a')  
+                kod_obce = cells[0].text.strip()  # Municipality code
+                nazev_obce = cells[1].text.strip()  # Municipality name
                 if link:
                     data.append({
                         'url': link['href'],
@@ -38,20 +38,20 @@ def extract_links_and_info(soup):
                     })
     return data
 
-def extract_voting_data(soup):
-    """Extrahuje výsledky hlasování pro danou obec."""
+def get_voting_data(soup):
+    """Extracts election results in a given municipality."""
     data = {}
-    tables = soup.find_all('table', {'class': 'table'})  # Najde všechny tabulky
+    tables = soup.find_all('table', {'class': 'table'})  # Finds all tables
 
-    # Počet hlasů
+    # Votes
     data['voliči v seznamu'] = soup.find('td', {'headers': 'sa2'}).text.strip()
     data['vydané obálky'] = soup.find('td', {'headers': 'sa3'}).text.strip()
     data['platné hlasy'] = soup.find('td', {'headers': 'sa6'}).text.strip()
 
-    # Výsledky stran (dle pořadí v tabulce na webu)
+    # Party results (according to the order in the table)
     parties = []
-    for table in tables[1:]:  # První tabulka je základní informace, další jsou strany
-        for row in table.find_all('tr')[2:]:  # První dva řádky jsou hlavičky
+    for table in tables[1:]:  # Firs table is just general information
+        for row in table.find_all('tr')[2:]:  # First two rows are headers
             cells = row.find_all('td')
             if len(cells) > 1:
                 strana = cells[1].text.strip()
@@ -62,35 +62,32 @@ def extract_voting_data(soup):
     
     return data, parties
 
-def main():
-    """Hlavní funkce skriptu."""
-    parser = argparse.ArgumentParser(description="Web scraping výsledků voleb.")
-    parser.add_argument('url', help="URL územního celku")
-    parser.add_argument('output', help="Název výstupního souboru CSV")
-    args = parser.parse_args()
+def get_municipalities(url):
+    """Extracts a list of municipalities and all links to their detailed results."""
+    soup = get_soup(url)
+    return extract_links_and_info(soup)
 
-    # Zpracování úvodní stránky
-    soup = get_soup(args.url)
-    obce_info = extract_links_and_info(soup)
-
-    # Extrakce dat pro každou obec
+def process_data(municipality_info):
+    """Process municipalitity parameters and election results together."""
     results = []
-    all_parties = []
-    for obec in obce_info:
+    all_parties = set()
+
+    for obec in municipality_info:
         full_url = f"https://www.volby.cz/pls/ps2017nss/{obec['url']}"
         soup = get_soup(full_url)
-        data, parties = extract_voting_data(soup)
+        data, parties = get_voting_data(soup)
         data['kód obce'] = obec['kód obce']
         data['název obce'] = obec['název obce']
         results.append(data)
-        for party in parties:
-            if party not in all_parties:
-                all_parties.append(party)
+        all_parties.update(parties)
 
-    # Zápis výsledků do CSV souboru
-    with open(args.output, mode='w', newline='', encoding='utf-8') as file:
+    return results, sorted(all_parties)  # Set guarantees unique party names
+
+def save_to_csv(results, all_parties, output_file):
+    """Saves the data to CSV file."""
+    with open(output_file, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
-        header = ['kód obce', 'název obce', 'voliči v seznamu', 'vydané obálky', 'platné hlasy'] + all_parties
+        header = ['Code', 'Location', 'Registered', 'Envelopes', 'Valid'] + all_parties
         writer.writerow(header)
 
         for result in results:
@@ -104,6 +101,22 @@ def main():
             for strana in all_parties:
                 row.append(result.get(strana, 0))
             writer.writerow(row)
+
+def main():
+    """Main function of the script only calls all fuctions together."""
+    parser = argparse.ArgumentParser(description="Web scraping výsledků voleb.")
+    parser.add_argument('url', help="URL územního celku")
+    parser.add_argument('output', help="Název výstupního souboru CSV")
+    args = parser.parse_args()
+
+    # Get municipalities info
+    municipality_info = get_municipalities(args.url)
+
+    # Get election data for each municipality
+    results, all_parties = process_data(municipality_info)
+
+    # Save to a CSV file
+    save_to_csv(results, all_parties, args.output)
 
 if __name__ == "__main__":
     main()
