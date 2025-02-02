@@ -10,7 +10,34 @@ discord: martin_71829
 import requests
 from bs4 import BeautifulSoup
 import csv
+import sys
 import argparse
+
+def validate_arguments():
+    """Validates command-line arguments and returns parsed arguments."""
+    parser = argparse.ArgumentParser(description="Web scraping election results.")
+    parser.add_argument('url', help="URL of the regional results page")
+    parser.add_argument('output', help="Name of the output CSV file")
+    args = parser.parse_args()
+
+    # Correct number of arguments
+    if len(sys.argv) != 3:
+        print("❌ Error: Wrong number of arguments!")
+        print("Usage: python script.py <URL> <output.csv>")
+        sys.exit(1)
+
+    # The first arhument must be a valid URL
+    if not (args.url.startswith("http://") or args.url.startswith("https://")):
+        print("❌ Error: First argument must be a valid URL!")
+        print("Example: python script.py https://example.com results.csv")
+        sys.exit(1)
+
+    # The second argument must be a CSV file (.csv) 
+    if not args.output.lower().endswith(".csv"):
+        print("❌ Error: Second argument must be a CSV file (e.g., results.csv)!")
+        sys.exit(1)
+
+    return args
 
 def get_soup(url):
     """Extracts HTML content of the website and returns BeautifulSoup object."""
@@ -50,7 +77,7 @@ def get_voting_data(soup):
 
     # Party results (according to the order in the table)
     parties = []
-    for table in tables[1:]:  # Firs table is just general information
+    for table in tables[1:]:  # The first table is just general information
         for row in table.find_all('tr')[2:]:  # First two rows are headers
             cells = row.find_all('td')
             if len(cells) > 1:
@@ -85,7 +112,7 @@ def process_data(municipality_info):
 
 def save_to_csv(results, all_parties, output_file):
     """Saves the data to CSV file."""
-    all_parties = [party for party in all_parties if party.strip()]  # Odstraní prázdné názvy stran
+    all_parties = [party for party in all_parties if party.strip()] 
     
     with open(output_file, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
@@ -100,13 +127,16 @@ def save_to_csv(results, all_parties, output_file):
                 result.get('vydané obálky', ''),
                 result.get('platné hlasy', ''),
             ]
-            row.extend([result.get(strana, 0) for strana in all_parties])  # Správně doplní výsledky
+            row.extend([result.get(strana, 0) for strana in all_parties]) 
             if len(row) != len(header):
                 print("❌ Error: Row length mismatch!", len(row), "vs", len(header))
             writer.writerow(row)
 
 def main():
     """Main function of the script only calls all fuctions together."""
+    # Validate the arguments
+    args = validate_arguments()  
+
     parser = argparse.ArgumentParser(description="Web scraping výsledků voleb.")
     parser.add_argument('url', help="URL územního celku")
     parser.add_argument('output', help="Název výstupního souboru CSV")
