@@ -85,6 +85,8 @@ def process_data(municipality_info):
 
 def save_to_csv(results, all_parties, output_file):
     """Saves the data to CSV file."""
+    all_parties = [party for party in all_parties if party.strip()]  # Odstraní prázdné názvy stran
+    
     with open(output_file, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         header = ['Code', 'Location', 'Registered', 'Envelopes', 'Valid'] + all_parties
@@ -98,8 +100,9 @@ def save_to_csv(results, all_parties, output_file):
                 result.get('vydané obálky', ''),
                 result.get('platné hlasy', ''),
             ]
-            for strana in all_parties:
-                row.append(result.get(strana, 0))
+            row.extend([result.get(strana, 0) for strana in all_parties])  # Správně doplní výsledky
+            if len(row) != len(header):
+                print("❌ Error: Row length mismatch!", len(row), "vs", len(header))
             writer.writerow(row)
 
 def main():
